@@ -1,0 +1,53 @@
+# OpenWA — déploiement sur le VPS Hostinger DERRIÈRE le Traefik existant.
+#
+# Ce VPS a déjà un Traefik (projet /docker/n8n-tbh8) qui occupe 80/443 et fait
+# le HTTPS Let's Encrypt automatique via des labels Docker. On NE lance donc PAS
+# Caddy ici (ça créerait un conflit de ports). À la place, openwa-api est routé
+# par le Traefik existant grâce aux labels ci-dessous, et rejoint son réseau.
+#
+# Le routeur Traefik n8n utilise : entrypoint `websecure`, certresolver
+# `letsencrypt`. On réutilise exactement les mêmes.
+#
+# Lancement (depuis deploy/) :
+#   cp .env.example .env && nano .env     # régler WA_DOMAIN + API_MASTER_KEY
+#   docker compose -f docker-compose.vps.yml up -d --build
+#
+# Le réseau `n8n-tbh8_default` est créé par la stack Traefik ; on le déclare
+# external pour s'y rattacher.
+
+services:
+  openwa-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: openwa-api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=2785
+      - API_MASTER_KEY=${API_MASTER_KEY:?API_MASTER_KEY manquant dans .env}
+      - AUTO_START_SESSIONS=true            # reconnecte la session au redémarrage
+      - DATABASE_TYPE=sqlite
+      - DATABASE_NAME=/app/data/openwa.sqlite
+      - SESSION_DATA_PATH=/app/data/sessions
+      - STORAGE_TYPE=local
+      - STORAGE_LOCAL_PATH=/app/data/media
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+    volumes:
+      - openwa-data:/app/data
+    networks: [traefik]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=n8n-tbh8_default
+      - traefik.http.routers.openwa.rule=Host(`${WA_DOMAIN:?WA_DOMAIN manquant dans .env}`)
+      - traefik.http.routers.openwa.entrypoints=websecure
+      - traefik.http.routers.openwa.tls.certresolver=letsencrypt
+      - traefik.http.services.openwa.loadbalancer.server.port=2785
+
+networks:
+  traefik:
+    name: n8n-tbh8_default
+    external: true
+
+volumes:
+  openwa-data:
