@@ -1,0 +1,60 @@
+# OpenWA — déploiement VPS (Hostinger) avec HTTPS automatique via Caddy.
+#
+# Architecture :
+#   Internet ──HTTPS(443)──► Caddy ──HTTP interne──► openwa-api:2785
+#
+# openwa-api n'est PAS exposé directement : seul Caddy publie 80/443.
+# La session WhatsApp et la base SQLite vivent dans le volume `openwa-data`
+# (persistant) → on ne rescanne le QR qu'une seule fois.
+#
+# Lancement :
+#   cp .env.example .env   &&   nano .env        # régler WA_DOMAIN + API_MASTER_KEY
+#   docker compose up -d --build
+
+services:
+  openwa-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: openwa-api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=2785
+      - API_MASTER_KEY=${API_MASTER_KEY:?API_MASTER_KEY manquant dans .env}
+      - AUTO_START_SESSIONS=true            # reconnecte la session au redémarrage
+      - DATABASE_TYPE=sqlite
+      - DATABASE_NAME=/app/data/openwa.sqlite
+      - SESSION_DATA_PATH=/app/data/sessions
+      - STORAGE_TYPE=local
+      - STORAGE_LOCAL_PATH=/app/data/media
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+    volumes:
+      - openwa-data:/app/data
+    expose:
+      - '2785'                              # visible seulement sur le réseau interne
+    networks: [wanet]
+
+  caddy:
+    image: caddy:2
+    container_name: openwa-caddy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      - WA_DOMAIN=${WA_DOMAIN:?WA_DOMAIN manquant dans .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data                    # certificats Let's Encrypt persistés
+      - caddy-config:/config
+    depends_on: [openwa-api]
+    networks: [wanet]
+
+networks:
+  wanet:
+
+volumes:
+  openwa-data:
+  caddy-data:
+  caddy-config:

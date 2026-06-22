@@ -63,6 +63,14 @@ uploads/
 *.tmp
 *.temp
 
+# Local runtime artifacts
+.node20/
+.node22/
+.session_id
+*.pid
+openwa-qr.png
+start-test.out
+
 # Git worktrees
 .worktrees/
 

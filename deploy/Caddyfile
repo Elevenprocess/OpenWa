@@ -1,0 +1,5 @@
+# Caddy obtient et renouvelle automatiquement le certificat HTTPS Let's Encrypt
+# pour WA_DOMAIN, et relaie tout vers le conteneur openwa-api sur le port 2785.
+{$WA_DOMAIN} {
+	reverse_proxy openwa-api:2785
+}
