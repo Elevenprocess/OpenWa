@@ -1,0 +1,32 @@
+# Override additif : expose openwa-api en HTTPS via un Traefik DÉJÀ présent sur
+# l'hôte (cas du VPS Hostinger, projet /docker/n8n-tbh8, réseau
+# n8n-tbh8_default, certresolver letsencrypt).
+#
+# À composer PAR-DESSUS le compose principal :
+#   docker compose -f docker-compose.dev.yml -f docker-compose.traefik.yml up -d
+#
+# ⚠️ Valeurs spécifiques au déploiement à adapter si l'hôte change :
+#   - le domaine dans la règle Host(...) (ici wa.srv1389857.hstgr.cloud)
+#   - le nom du réseau Traefik externe (ici n8n-tbh8_default)
+#   - le nom du certresolver / entrypoint doivent matcher ceux du Traefik hôte
+#
+# N.B. : si l'hôte n'a PAS de Traefik, utiliser plutôt deploy/docker-compose.vps.yml
+# (qui embarque son propre routage) — voir deploy/DEPLOY-VPS.md.
+
+services:
+  openwa:
+    networks:
+      - default
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=n8n-tbh8_default
+      - traefik.http.routers.openwa.rule=Host(`wa.srv1389857.hstgr.cloud`)
+      - traefik.http.routers.openwa.entrypoints=websecure
+      - traefik.http.routers.openwa.tls.certresolver=letsencrypt
+      - traefik.http.services.openwa.loadbalancer.server.port=2785
+
+networks:
+  traefik:
+    name: n8n-tbh8_default
+    external: true
