@@ -8,6 +8,13 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: openwa-api
+    # Run node as root (skip the gosu privilege drop). gosu's setuid root->openwa
+    # clears the process "dumpable" flag, which prevents Chromium's crashpad handler
+    # from attaching to the browser process ("chrome_crashpad_handler: --database is
+    # required" / crashpad socket reset). Sandbox is already disabled via PUPPETEER_ARGS.
+    user: root
+    entrypoint: ['dumb-init', '--']
+    command: ['node', 'dist/main']
     ports:
       - '127.0.0.1:2785:2785'
     environment:
@@ -18,13 +25,15 @@ services:
       - DATABASE_SYNCHRONIZE=true
       - ENGINE_TYPE=whatsapp-web.js
       - SESSION_DATA_PATH=/app/data/sessions
+      - HOME=/app/data
       - PUPPETEER_HEADLESS=true
-      - PUPPETEER_ARGS=--no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu
+      - PUPPETEER_ARGS=--no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu,--disable-crash-reporter,--disable-breakpad,--no-zygote
       - STORAGE_TYPE=local
       - STORAGE_LOCAL_PATH=/app/data/media
       - WEBHOOK_TIMEOUT=10000
       - WEBHOOK_MAX_RETRIES=3
       - QUEUE_ENABLED=false
+      - AUTO_START_SESSIONS=true
     volumes:
       - ./data:/app/data
     restart: unless-stopped
